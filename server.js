@@ -1,6 +1,6 @@
 // server.js
 const express = require('express');
-const { Client,MessageMedia  } = require('whatsapp-web.js');
+const { Client,MessageMedia  ,LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode');
 const axios = require('axios');
 const app = express();
@@ -9,18 +9,44 @@ const path = require('path');
 const fs = require('fs');
 const { Buffer } = require('buffer');
 const { URL } = require('url');
+require('dotenv').config();
 
 // Middleware for parsing JSON bodies
 app.use(express.json());
 
-// Initialize WhatsApp client
-const client = new Client();
+// Path to store session data
+const SESSION_FILE_PATH = './session.json';
+
+let sessionData;
 let qrCode = null;
 let isReady = 'false';
-
 // Store messages in memory (replace with database in production)
 const messages = [];
-const callback_url = 'http://127.0.0.1:8000/callback';
+const callback_url = process.env.CALLBACK_URL;
+
+if (fs.existsSync(SESSION_FILE_PATH)) {
+    sessionData = require(SESSION_FILE_PATH); // Load saved session
+}
+
+// Initialize WhatsApp client
+const client = new Client({
+    authStrategy: new LocalAuth({
+        clientId: 'client-one', // Optional: Use unique IDs for multiple sessions
+    }) ,
+    puppeteer: {
+        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    }
+});
+
+
+
+
+client.on('ready', () => {
+    console.log('Client is ready!');
+    isReady = 'true';
+    fs.writeFileSync(SESSION_FILE_PATH, JSON.stringify(session));
+    
+});
 
 // WhatsApp Client Event Handlers
 client.on('qr', async (qr) => {
@@ -29,10 +55,7 @@ client.on('qr', async (qr) => {
     qrCode = await qrcode.toDataURL(qr);
 });
 
-client.on('ready', () => {
-    console.log('Client is ready!');
-    isReady = 'true';
-});
+
 
 client.on('message', async msg => {
     // Store message
@@ -46,7 +69,7 @@ client.on('message', async msg => {
         msg:msg
     };
 
-    console.log(msg.hasMedia);
+    //console.log(msg.hasMedia);
     if (msg.hasMedia) {
         const media = await msg.downloadMedia();
 
@@ -61,10 +84,10 @@ client.on('message', async msg => {
             });
 
             // If you need the image as a base64 string
-            console.log('Image in base64:', media.data);
-            messageData.media_url = `http://127.0.0.1:8000/images/${msg.id.id}.jpg`;
+           // console.log('Image in base64:', media.data);
+            messageData.media_url = `{$APP_URL}/images/${msg.id.id}.jpg`;
         }
-        console.log('Image in base64:', media);
+       // console.log('Image in base64:', media);
     }
 
    
@@ -157,11 +180,14 @@ app.post('/api/send', async (req, res) => {
         
         // Send message
         const response = await client.sendMessage(formattedNumber, message);
+        //console.log(response);
         res.json({
             success: true,
             messageId: response.id
         });
+
     } catch (error) {
+       // console.log(error.message);
         res.status(500).json({
             success: false,
             error: error.message
@@ -180,11 +206,13 @@ app.get('/api/chat-history/:phoneNumber', async (req, res) => {
     const { phoneNumber } = req.params;
     const chatId = `${phoneNumber}@c.us`;
 
+    if (isReady){
+    
     try {
         const chat = await client.getChatById(chatId);
         const messages = await chat.fetchMessages({ limit: 50 });
 
-        
+       // console.log(messages);
 
         // Format messages for JSON response
         const formattedMessages = messages.map(message => ({
@@ -206,6 +234,7 @@ app.get('/api/chat-history/:phoneNumber', async (req, res) => {
     } catch (error) {
         console.error('Error retrieving chat history:', error);
         res.status(500).json({ success: false, message: 'Error retrieving chat history' });
+    }
     }
 });
 
@@ -315,7 +344,7 @@ app.post('/api/send-url-image', async (req, res) => {
             caption: caption || ''
         });
 
-        console.log(messageResponse.id.id);
+      //  console.log(messageResponse.id.id);
 
         fs.writeFile(`./images/${messageResponse.id.id}.jpg`, imageBase64, { encoding: 'base64' }, function (err) {
             if (err) {
