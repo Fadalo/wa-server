@@ -450,7 +450,6 @@ app.post('/api/send-group-url-image', async (req, res) => {
         });
     }
 });
-ssss
 
 app.listen(port, () => {
     console.log(`WhatsApp API server running on port ${port}`);
