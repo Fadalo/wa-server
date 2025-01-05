@@ -221,7 +221,7 @@ app.get('/api/chat-history/:phoneNumber', async (req, res) => {
             body: message.body,
             hasMedia:message.hasMedia,
             message:message,
-            imageUrl:`http://127.0.0.1:3000/images/${message.id.id}.jpg`
+            imageUrl:`{$APP_URL}/images/${message.id.id}.jpg`
         }));
 
         
@@ -450,7 +450,7 @@ app.post('/api/send-group-url-image', async (req, res) => {
         });
     }
 });
-
+ssss
 
 app.listen(port, () => {
     console.log(`WhatsApp API server running on port ${port}`);
